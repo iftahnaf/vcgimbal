@@ -2,9 +2,18 @@
 #include "PWMControllerRPi5.h"
 #include "PWMControllerPico.h"
 #include <iostream>
+#include <memory>
+
+#ifdef PICO_BUILD
+#include "pico/stdlib.h"
+inline void delay_ms(int milliseconds) { sleep_ms(milliseconds); }
+#else
 #include <thread>
 #include <chrono>
-#include <memory>
+inline void delay_ms(int milliseconds) {
+    std::this_thread::sleep_for(std::chrono::milliseconds(milliseconds));
+}
+#endif
 
 /**
  * @brief Example usage of Gimbal controller on different platforms
@@ -16,10 +25,6 @@
  * - Sweeping the camera view
  * - Proper cleanup
  */
-
-void delay_ms(int milliseconds) {
-    std::this_thread::sleep_for(std::chrono::milliseconds(milliseconds));
-}
 
 int main() {
     std::cout << "=== Gimbal Control Example ===" << std::endl;

@@ -5,6 +5,12 @@ build/
 *.so
 *.elf
 *.uf2
+*.log
+
+# Node / semantic-release
+node_modules/
+.npm/
+dist/
 
 # CMake
 cmake_install.cmake

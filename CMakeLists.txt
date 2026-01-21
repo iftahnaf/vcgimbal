@@ -41,7 +41,6 @@ include_directories(${PROJECT_SOURCE_DIR}/include)
 # Source files - common to all platforms
 set(GIMBAL_COMMON_SOURCES
     src/Gimbal.cpp
-    src/PWMControllerRPi5.cpp
 )
 
 # Platform-specific PWM controller
@@ -87,8 +86,8 @@ if(PLATFORM STREQUAL "PICO")
     pico_enable_stdio_usb(gimbal_example 1)
     pico_enable_stdio_uart(gimbal_example 0)
     
-    # Create .uf2 file for easy flashing
-    pico_add_uf2_output(gimbal_example)
+    # Create .uf2 and .bin outputs for flashing
+    pico_add_extra_outputs(gimbal_example)
 endif()
 
 # Set executable output directory
@@ -116,7 +115,7 @@ message(STATUS "")
 
 if(PLATFORM STREQUAL "PICO")
     message(STATUS "Pico notes:")
-    message(STATUS "  - Firmware: ${CMAKE_BINARY_DIR}/bin/gimbal_example.uf2")
+    message(STATUS "  - Firmware: ${CMAKE_BINARY_DIR}/bin/gimbal_example.uf2 (and .bin)")
     message(STATUS "  - For details, run: ./scripts/flash.sh")
     message(STATUS "")
 endif()

@@ -1,0 +1,36 @@
+{
+  "branches": ["main"],
+  "plugins": [
+    [
+      "@semantic-release/commit-analyzer",
+      { "preset": "conventionalcommits" }
+    ],
+    [
+      "@semantic-release/release-notes-generator",
+      { "preset": "conventionalcommits" }
+    ],
+    [
+      "@semantic-release/changelog",
+      { "changelogFile": "CHANGELOG.md" }
+    ],
+    [
+      "@semantic-release/git",
+      {
+        "assets": ["CHANGELOG.md", "README.md", "PLATFORM_GUIDE.md"],
+        "message": "chore(release): ${nextRelease.version} [skip ci]\n\n${nextRelease.notes}"
+      }
+    ],
+    [
+      "@semantic-release/github",
+      {
+        "assets": [
+          { "path": "dist/gimbal_rpi5.bin", "label": "gimbal_rpi5.bin" },
+          { "path": "dist/gimbal_rpi5.elf", "label": "gimbal_rpi5.elf" },
+          { "path": "dist/gimbal_pico.uf2", "label": "gimbal_pico.uf2" },
+          { "path": "dist/gimbal_pico.bin", "label": "gimbal_pico.bin" },
+          { "path": "dist/gimbal_pico.elf", "label": "gimbal_pico.elf" }
+        ]
+      }
+    ]
+  ]
+}

@@ -1,0 +1,48 @@
+name: Release
+
+on:
+  push:
+    branches: [ main ]
+
+jobs:
+  release:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          submodules: recursive
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+
+      - name: Install build dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y build-essential cmake gcc-arm-none-eabi
+
+      - name: Build RPi5 binary
+        run: |
+          bash scripts/build.sh RPi5
+          mkdir -p dist
+          cp build/bin/gimbal_example dist/gimbal_rpi5.bin
+          cp build/bin/gimbal_example dist/gimbal_rpi5.elf
+
+      - name: Build Pico firmware
+        run: |
+          rm -rf build
+          bash scripts/build.sh PICO
+          mkdir -p dist
+          cp build/bin/gimbal_example.uf2 dist/gimbal_pico.uf2
+          cp build/bin/gimbal_example.bin dist/gimbal_pico.bin
+          cp build/bin/gimbal_example.elf dist/gimbal_pico.elf
+
+      - name: Install Node dependencies
+        run: npm ci
+
+      - name: Release
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: npx semantic-release

@@ -1,0 +1,26 @@
+{
+  "name": "vcgimbal",
+  "version": "0.0.0-semantic-release",
+  "description": "RPi5/Pico 2D pan-tilt gimbal controller with MG90S servos",
+  "private": true,
+  "scripts": {
+    "release": "semantic-release"
+  },
+  "keywords": [
+    "gimbal",
+    "rpi",
+    "pico",
+    "servo"
+  ],
+  "author": "",
+  "license": "MIT",
+  "devDependencies": {
+    "@semantic-release/changelog": "^6.0.3",
+    "@semantic-release/commit-analyzer": "^13.0.1",
+    "@semantic-release/git": "^10.0.1",
+    "@semantic-release/github": "^11.0.6",
+    "@semantic-release/release-notes-generator": "^14.1.0",
+    "conventional-changelog-conventionalcommits": "^9.1.0",
+    "semantic-release": "^24.2.9"
+  }
+}

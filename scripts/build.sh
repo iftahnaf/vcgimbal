@@ -67,6 +67,10 @@ echo ""
 # Output information
 if [[ "$PLATFORM" == "PICO" ]]; then
     echo "Pico firmware:"
+    # Normalize artifact locations for convenience
+    mkdir -p "$BUILD_DIR/bin"
+    cp "$BUILD_DIR"/gimbal_example.uf2 "$BUILD_DIR/bin/" 2>/dev/null || true
+    cp "$BUILD_DIR"/gimbal_example.bin "$BUILD_DIR/bin/" 2>/dev/null || true
     echo "  Location: $BUILD_DIR/bin/gimbal_example.uf2"
     echo "  To flash:"
     echo "    1. Connect Pico to USB with BOOTSEL held"
