@@ -1,2 +1,0 @@
-/usr/bin/ar qc lib/libgimbal.a CMakeFiles/gimbal_lib.dir/src/Gimbal.cpp.o
-/usr/bin/ranlib lib/libgimbal.a
