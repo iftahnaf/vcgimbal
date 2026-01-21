@@ -3,8 +3,18 @@
 #include <cmath>
 #include <iostream>
 
-Gimbal::Gimbal(uint32_t pan_pin, uint32_t tilt_pin)
-    : pan_pin_(pan_pin),
+Gimbal::Gimbal(PWMController* pwm_controller, uint32_t pan_pin, uint32_t tilt_pin)
+    : pwm_controller_(pwm_controller),
+      pan_pin_(pan_pin),
+      tilt_pin_(tilt_pin),
+      current_pan_angle_(0.0f),
+      current_tilt_angle_(0.0f),
+      initialized_(false) {
+}
+
+Gimbal::Gimbal(std::shared_ptr<PWMController> pwm_controller, uint32_t pan_pin, uint32_t tilt_pin)
+    : pwm_controller_(pwm_controller),
+      pan_pin_(pan_pin),
       tilt_pin_(tilt_pin),
       current_pan_angle_(0.0f),
       current_tilt_angle_(0.0f),
@@ -23,14 +33,27 @@ bool Gimbal::init() {
         return true;
     }
 
-    // TODO: Initialize pigpio library
-    // TODO: Set up GPIO pins as PWM outputs
-    // TODO: Center gimbal at 0,0 degrees
+    if (!pwm_controller_) {
+        std::cerr << "PWM controller not set" << std::endl;
+        return false;
+    }
 
     std::cout << "Initializing gimbal on pins: pan=" << pan_pin_ 
-              << ", tilt=" << tilt_pin_ << std::endl;
+              << ", tilt=" << tilt_pin_ 
+              << " (Platform: " << pwm_controller_->getPlatformName() << ")" << std::endl;
 
-    // Initialize to center position
+    // Initialize PWM on both pins
+    if (!pwm_controller_->initPin(pan_pin_, PWM_FREQUENCY)) {
+        std::cerr << "Failed to initialize pan servo PWM" << std::endl;
+        return false;
+    }
+
+    if (!pwm_controller_->initPin(tilt_pin_, PWM_FREQUENCY)) {
+        std::cerr << "Failed to initialize tilt servo PWM" << std::endl;
+        return false;
+    }
+
+    // Center gimbal
     if (!setPWM(pan_pin_, MID_PULSE_WIDTH)) {
         std::cerr << "Failed to initialize pan servo" << std::endl;
         return false;
@@ -54,8 +77,10 @@ void Gimbal::shutdown() {
         return;
     }
 
-    // TODO: Stop PWM on both pins
-    // TODO: Cleanup pigpio resources
+    if (pwm_controller_) {
+        pwm_controller_->shutdownPin(pan_pin_);
+        pwm_controller_->shutdownPin(tilt_pin_);
+    }
 
     std::cout << "Shutting down gimbal" << std::endl;
     initialized_ = false;
@@ -129,9 +154,12 @@ bool Gimbal::isValidAngle(float angle) const {
 }
 
 bool Gimbal::setPWM(uint32_t pin, uint32_t pulse_width) {
-    // TODO: Implement actual PWM control using pigpio library
-    // For now, just log the action
-    std::cout << "Setting PWM on pin " << pin << ": " 
-              << pulse_width << " µs" << std::endl;
-    return true;
+    if (!pwm_controller_) {
+        return false;
+    }
+
+    // Period = 1000000 microseconds / 50 Hz = 20000 microseconds
+    uint32_t period_us = 1000000 / PWM_FREQUENCY;
+    
+    return pwm_controller_->setPulseWidth(pin, pulse_width, period_us);
 }

@@ -1,13 +1,17 @@
 #include "Gimbal.h"
+#include "PWMControllerRPi5.h"
+#include "PWMControllerPico.h"
 #include <iostream>
 #include <thread>
 #include <chrono>
+#include <memory>
 
 /**
- * @brief Example usage of Gimbal controller
+ * @brief Example usage of Gimbal controller on different platforms
  * 
  * This example demonstrates:
- * - Initializing the gimbal
+ * - Platform selection (RPi5 or Pico)
+ * - Initializing the gimbal with appropriate PWM controller
  * - Setting various pan/tilt angles
  * - Sweeping the camera view
  * - Proper cleanup
@@ -19,15 +23,25 @@ void delay_ms(int milliseconds) {
 
 int main() {
     std::cout << "=== Gimbal Control Example ===" << std::endl;
-    std::cout << "RPi5 2D Gimbal with MG90S Servo Motors" << std::endl << std::endl;
-
+    
     // GPIO pin configuration
-    // Adjust these based on your Raspberry Pi wiring
+    // Adjust these based on your Raspberry Pi or Pico wiring
     const uint32_t PAN_PIN = 17;    // GPIO 17 for pan servo
     const uint32_t TILT_PIN = 27;   // GPIO 27 for tilt servo
 
+    // Create platform-specific PWM controller
+    std::shared_ptr<PWMController> pwm_controller;
+
+#ifdef PICO_BUILD
+    std::cout << "Running on Raspberry Pi Pico" << std::endl;
+    pwm_controller = std::make_shared<PWMControllerPico>();
+#else
+    std::cout << "Running on Raspberry Pi 5" << std::endl;
+    pwm_controller = std::make_shared<PWMControllerRPi5>();
+#endif
+
     // Create gimbal controller instance
-    Gimbal gimbal(PAN_PIN, TILT_PIN);
+    Gimbal gimbal(pwm_controller, PAN_PIN, TILT_PIN);
 
     // Initialize gimbal
     if (!gimbal.init()) {

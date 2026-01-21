@@ -3,3 +3,19 @@ build/
 *.o
 *.a
 *.so
+*.elf
+*.uf2
+
+# CMake
+cmake_install.cmake
+CMakeCache.txt
+CMakeFiles/
+Makefile
+
+# IDEs
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+.DS_Store

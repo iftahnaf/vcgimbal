@@ -1,28 +1,34 @@
 cmake_minimum_required(VERSION 3.10)
-project(gimbal VERSION 1.0.0 LANGUAGES CXX)
+
+# Platform selection - can be overridden with: cmake -DPLATFORM=PICO
+set(PLATFORM "RPi5" CACHE STRING "Target platform: RPi5 or PICO")
+
+# Initialize project based on platform
+if(PLATFORM STREQUAL "PICO")
+    # Pico-specific setup (must be done before project())
+    set(PICO_SDK_PATH "${CMAKE_SOURCE_DIR}/lib/pico-sdk" CACHE PATH "Path to Pico SDK")
+    include(${PICO_SDK_PATH}/external/pico_sdk_import.cmake)
+    
+    project(gimbal VERSION 1.0.0 LANGUAGES CXX C)
+    
+    # Initialize pico SDK
+    pico_sdk_init()
+    
+    message(STATUS "Building for Raspberry Pi Pico")
+else()
+    project(gimbal VERSION 1.0.0 LANGUAGES CXX)
+    message(STATUS "Building for Raspberry Pi 5")
+endif()
 
 # Set C++ standard
 set(CMAKE_CXX_STANDARD 17)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 
-# Platform detection
-if(NOT CMAKE_SYSTEM_PROCESSOR)
-    set(CMAKE_SYSTEM_PROCESSOR ${CMAKE_HOST_SYSTEM_PROCESSOR})
-endif()
-
-message(STATUS "System Processor: ${CMAKE_SYSTEM_PROCESSOR}")
-message(STATUS "System Name: ${CMAKE_SYSTEM_NAME}")
-
 # Compiler flags
 set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -Wall -Wextra -Wpedantic")
-
-# Release build optimizations
 set(CMAKE_CXX_FLAGS_RELEASE "-O3 -DNDEBUG")
-
-# Debug build flags
 set(CMAKE_CXX_FLAGS_DEBUG "-g -O0 -DDEBUG")
 
-# Set default build type if not specified
 if(NOT CMAKE_BUILD_TYPE)
     set(CMAKE_BUILD_TYPE Release)
 endif()
@@ -32,13 +38,39 @@ message(STATUS "Build type: ${CMAKE_BUILD_TYPE}")
 # Include directories
 include_directories(${PROJECT_SOURCE_DIR}/include)
 
-# Source files for gimbal library
-set(GIMBAL_SOURCES
+# Source files - common to all platforms
+set(GIMBAL_COMMON_SOURCES
     src/Gimbal.cpp
+    src/PWMControllerRPi5.cpp
 )
 
+# Platform-specific PWM controller
+if(PLATFORM STREQUAL "PICO")
+    list(APPEND GIMBAL_COMMON_SOURCES src/PWMControllerPico.cpp)
+    add_compile_definitions(PICO_BUILD=1)
+else()
+    list(APPEND GIMBAL_COMMON_SOURCES src/PWMControllerRPi5.cpp)
+endif()
+
 # Create gimbal library
-add_library(gimbal_lib STATIC ${GIMBAL_SOURCES})
+add_library(gimbal_lib STATIC ${GIMBAL_COMMON_SOURCES})
+
+# Platform-specific library linking
+if(PLATFORM STREQUAL "PICO")
+    target_link_libraries(gimbal_lib
+        pico_stdlib
+        hardware_pwm
+        hardware_clocks
+    )
+    target_compile_definitions(gimbal_lib PUBLIC PICO_BUILD=1)
+else()
+    # Optional: Link pigpio if available for RPi5
+    # find_package(pigpio QUIET)
+    # if(pigpio_FOUND)
+    #     target_link_libraries(gimbal_lib ${pigpio_LIBRARIES})
+    #     target_include_directories(gimbal_lib PRIVATE ${pigpio_INCLUDE_DIRS})
+    # endif()
+endif()
 
 # Set library output directory
 set_target_properties(gimbal_lib PROPERTIES
@@ -50,31 +82,28 @@ set_target_properties(gimbal_lib PROPERTIES
 add_executable(gimbal_example examples/example_basic.cpp)
 target_link_libraries(gimbal_example gimbal_lib)
 
+if(PLATFORM STREQUAL "PICO")
+    # Enable USB serial output for Pico
+    pico_enable_stdio_usb(gimbal_example 1)
+    pico_enable_stdio_uart(gimbal_example 0)
+    
+    # Create .uf2 file for easy flashing
+    pico_add_uf2_output(gimbal_example)
+endif()
+
 # Set executable output directory
 set_target_properties(gimbal_example PROPERTIES
     RUNTIME_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/bin
 )
-
-# Optional: Find and link pigpio library if available
-# Uncomment this section once you're ready to use actual GPIO control
-# find_package(pigpio QUIET)
-# if(pigpio_FOUND)
-#     message(STATUS "pigpio found, enabling GPIO control")
-#     target_link_libraries(gimbal_lib ${pigpio_LIBRARIES})
-#     target_include_directories(gimbal_lib PRIVATE ${pigpio_INCLUDE_DIRS})
-#     target_compile_definitions(gimbal_lib PRIVATE USE_PIGPIO)
-# else()
-#     message(STATUS "pigpio not found - GPIO control will be simulated")
-# endif()
 
 # Print build summary
 message(STATUS "")
 message(STATUS "=== Build Configuration ===")
 message(STATUS "Project: ${PROJECT_NAME}")
 message(STATUS "Version: ${PROJECT_VERSION}")
+message(STATUS "Platform: ${PLATFORM}")
 message(STATUS "Build type: ${CMAKE_BUILD_TYPE}")
 message(STATUS "C++ Standard: ${CMAKE_CXX_STANDARD}")
-message(STATUS "Compiler: ${CMAKE_CXX_COMPILER}")
 message(STATUS "")
 message(STATUS "Targets:")
 message(STATUS "  - gimbal_lib (static library)")
@@ -84,3 +113,10 @@ message(STATUS "Output directories:")
 message(STATUS "  - Libraries: ${CMAKE_BINARY_DIR}/lib")
 message(STATUS "  - Executables: ${CMAKE_BINARY_DIR}/bin")
 message(STATUS "")
+
+if(PLATFORM STREQUAL "PICO")
+    message(STATUS "Pico notes:")
+    message(STATUS "  - Firmware: ${CMAKE_BINARY_DIR}/bin/gimbal_example.uf2")
+    message(STATUS "  - For details, run: ./scripts/flash.sh")
+    message(STATUS "")
+endif()

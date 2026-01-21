@@ -1,7 +1,9 @@
 #ifndef GIMBAL_H
 #define GIMBAL_H
 
+#include "PWMController.h"
 #include <cstdint>
+#include <memory>
 
 /**
  * @class Gimbal
@@ -10,15 +12,27 @@
  * Controls a pan-tilt gimbal with camera mounted on the tip.
  * Uses two MG90S servo motors for horizontal (pan) and vertical (tilt) movement.
  * Communicates with servos via PWM signals on GPIO pins.
+ * 
+ * Platform-independent: works with any PWMController implementation
+ * (RPi5 with pigpio, Pico with pico-sdk, etc.)
  */
 class Gimbal {
 public:
     /**
      * @brief Constructor for Gimbal controller
+     * @param pwm_controller Platform-specific PWM controller (must be initialized)
      * @param pan_pin GPIO pin number for pan servo motor
      * @param tilt_pin GPIO pin number for tilt servo motor
      */
-    Gimbal(uint32_t pan_pin, uint32_t tilt_pin);
+    Gimbal(PWMController* pwm_controller, uint32_t pan_pin, uint32_t tilt_pin);
+    
+    /**
+     * @brief Constructor with shared pointer (preferred for modern C++)
+     * @param pwm_controller Shared pointer to PWM controller
+     * @param pan_pin GPIO pin number for pan servo motor
+     * @param tilt_pin GPIO pin number for tilt servo motor
+     */
+    Gimbal(std::shared_ptr<PWMController> pwm_controller, uint32_t pan_pin, uint32_t tilt_pin);
 
     /**
      * @brief Destructor - cleanup PWM and GPIO resources
@@ -65,6 +79,9 @@ public:
     bool isInitialized() const;
 
 private:
+    // PWM controller (platform-specific implementation)
+    std::shared_ptr<PWMController> pwm_controller_;
+    
     // GPIO and PWM configuration
     uint32_t pan_pin_;
     uint32_t tilt_pin_;
