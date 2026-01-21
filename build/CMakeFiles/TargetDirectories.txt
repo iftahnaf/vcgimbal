@@ -1,0 +1,4 @@
+/home/iftach/dev/gimbal/build/CMakeFiles/gimbal_lib.dir
+/home/iftach/dev/gimbal/build/CMakeFiles/gimbal_example.dir
+/home/iftach/dev/gimbal/build/CMakeFiles/edit_cache.dir
+/home/iftach/dev/gimbal/build/CMakeFiles/rebuild_cache.dir
