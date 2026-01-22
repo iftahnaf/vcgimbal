@@ -21,7 +21,7 @@ bool PWMControllerRPi5::initLgpio() {
 void PWMControllerRPi5::shutdownLgpio() {
     for (auto pin : claimed_pins_) {
         // Stop PWM and free pin
-        lgTxPwm(chip_, pin, 50.0, 0.0);
+        lgTxPwm(chip_, pin, 50.0f, 0.0f, 0, 0);
         lgGpioFree(chip_, pin);
     }
     claimed_pins_.clear();
@@ -43,7 +43,7 @@ bool PWMControllerRPi5::initPin(uint32_t pin, uint32_t frequency) {
         pin_frequency_[pin] = frequency;
         return true;
     }
-    if (lgGpioClaimOutput(chip_, pin, 0) < 0) {
+    if (lgGpioClaimOutput(chip_, 0, pin, 0) < 0) {
         std::cerr << "Failed to claim GPIO " << pin << " as output" << std::endl;
         return false;
     }
@@ -64,7 +64,7 @@ bool PWMControllerRPi5::setPulseWidth(uint32_t pin, uint32_t pulse_width_us, uin
         return false;
     }
     double duty = (static_cast<double>(pulse_width_us) / static_cast<double>(period_us)) * 100.0;
-    if (lgTxPwm(chip_, pin, static_cast<double>(itf->second), duty) < 0) {
+    if (lgTxPwm(chip_, pin, static_cast<float>(itf->second), static_cast<float>(duty), 0, 0) < 0) {
         std::cerr << "Failed to set PWM on pin " << pin << std::endl;
         return false;
     }
@@ -75,7 +75,7 @@ bool PWMControllerRPi5::shutdownPin(uint32_t pin) {
     if (!claimed_pins_.count(pin)) {
         return false;
     }
-    lgTxPwm(chip_, pin, 50.0, 0.0);
+    lgTxPwm(chip_, pin, 50.0f, 0.0f, 0, 0);
     lgGpioFree(chip_, pin);
     claimed_pins_.erase(pin);
     pin_frequency_.erase(pin);
