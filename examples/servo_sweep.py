@@ -2,37 +2,12 @@
 import argparse
 import sys
 import time
-import subprocess
-import platform
 
 try:
     import pigpio
 except ImportError:
     print("pigpio Python module not found. Install pigpio v79 (source) or 'sudo apt install python3-pigpio' if available.")
     sys.exit(1)
-
-
-def ensure_pigpiod():
-    pi = pigpio.pi()
-    if pi is not None and pi.connected:
-        return pi
-
-    # Try starting pigpiod
-    arch = platform.machine()
-    t_flag = "-t0" if arch == "aarch64" else "-t1"
-    # 10us sample rate is fine for servos
-    cmd = ["sudo", "pigpiod", "-s10", t_flag]
-    try:
-        subprocess.run(cmd, check=True)
-        time.sleep(0.5)
-    except Exception as e:
-        print(f"Failed to start pigpiod: {e}")
-
-    pi = pigpio.pi()
-    if not pi.connected:
-        print("Unable to connect to pigpio daemon. Ensure pigpio is installed and pigpiod can run.")
-        sys.exit(1)
-    return pi
 
 
 def center(pi, pan, tilt):
@@ -57,7 +32,11 @@ def main():
     parser.add_argument("--tilt", type=int, default=27, help="GPIO for tilt servo (default: 27)")
     args = parser.parse_args()
 
-    pi = ensure_pigpiod()
+    pi = pigpio.pi()
+    if not pi.connected:
+        print("pigpio daemon not running. Start it with: sudo pigpiod")
+        sys.exit(1)
+
     print(f"Connected to pigpio. Sweeping PAN={args.pan}, TILT={args.tilt}")
 
     try:
