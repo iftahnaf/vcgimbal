@@ -22,13 +22,13 @@ bool PWMControllerRPi5::initGpiod() {
 }
 
 void PWMControllerRPi5::shutdownGpiod() {
-    // Release all lines
-    for (auto& [pin, line] : lines_) {
-        if (line) {
-            gpiod_line_release(line);
+    // Release all line requests (libgpiod v2 API)
+    for (auto& [pin, request] : requests_) {
+        if (request) {
+            gpiod_line_request_release(request);
         }
     }
-    lines_.clear();
+    requests_.clear();
     
     // Close chip
     if (chip_) {
@@ -45,44 +45,51 @@ bool PWMControllerRPi5::initPin(uint32_t pin, uint32_t frequency) {
         }
     }
 
-    // Request line from chip
-    struct gpiod_line* line = gpiod_chip_get_line(chip_, pin);
-    if (!line) {
-        std::cerr << "Failed to get GPIO line " << pin << std::endl;
+    // Create line request config (libgpiod v2 API)
+    struct gpiod_request_config* req_cfg = gpiod_request_config_new();
+    if (!req_cfg) {
+        std::cerr << "Failed to create request config" << std::endl;
         return false;
     }
     
-    // Request line for output
-    if (gpiod_line_request_output(line, "gimbal", 0) < 0) {
-        std::cerr << "Failed to request GPIO line " << pin << " as output" << std::endl;
+    // Set consumer name and offsets
+    gpiod_request_config_set_consumer(req_cfg, "gimbal");
+    unsigned int offsets[] = { pin };
+    gpiod_request_config_set_offsets(req_cfg, 1, offsets);
+    gpiod_request_config_set_direction(req_cfg, GPIOD_LINE_DIRECTION_OUTPUT);
+    
+    // Request lines from chip
+    struct gpiod_line_request* request = gpiod_chip_request_lines(chip_, req_cfg);
+    gpiod_request_config_free(req_cfg);
+    
+    if (!request) {
+        std::cerr << "Failed to request GPIO line " << pin << std::endl;
         return false;
     }
     
-    lines_[pin] = line;
+    requests_[pin] = request;
     std::cout << "PWMControllerRPi5: Initialized pin " << pin 
               << " with frequency " << frequency << " Hz" << std::endl;
     return true;
 }
 
 bool PWMControllerRPi5::setPulseWidth(uint32_t pin, uint32_t pulse_width_us, uint32_t period_us) {
-    auto it = lines_.find(pin);
-    if (it == lines_.end()) {
+    auto it = requests_.find(pin);
+    if (it == requests_.end()) {
         std::cerr << "Pin " << pin << " not initialized" << std::endl;
         return false;
     }
     
-    struct gpiod_line* line = it->second;
+    struct gpiod_line_request* request = it->second;
     
     // Calculate duty cycle (0-1000000, microsecond precision)
     uint32_t duty_cycle = (pulse_width_us * 1000000) / period_us;
     
-    // Simulate PWM by toggling GPIO rapidly based on duty cycle
-    // For actual hardware PWM, you would need to use a different approach
-    // such as ioctl calls or a userspace PWM daemon
-    
-    // For now, set HIGH if duty cycle > 50%, LOW otherwise
+    // Set HIGH if duty cycle > 50%, LOW otherwise
+    // For actual hardware PWM on RPi5, you'd need PWM sysfs or ioctl control
     int value = (duty_cycle > 500000) ? 1 : 0;
-    if (gpiod_line_set_value(line, value) < 0) {
+    
+    if (gpiod_line_request_set_value(request, 0, value) < 0) {
         std::cerr << "Failed to set GPIO line " << pin << " value" << std::endl;
         return false;
     }
@@ -93,15 +100,15 @@ bool PWMControllerRPi5::setPulseWidth(uint32_t pin, uint32_t pulse_width_us, uin
 }
 
 bool PWMControllerRPi5::shutdownPin(uint32_t pin) {
-    auto it = lines_.find(pin);
-    if (it == lines_.end()) {
+    auto it = requests_.find(pin);
+    if (it == requests_.end()) {
         return false;
     }
     
-    struct gpiod_line* line = it->second;
-    gpiod_line_set_value(line, 0);
-    gpiod_line_release(line);
-    lines_.erase(it);
+    struct gpiod_line_request* request = it->second;
+    gpiod_line_request_set_value(request, 0, 0);
+    gpiod_line_request_release(request);
+    requests_.erase(it);
     
     std::cout << "PWMControllerRPi5: Shutdown pin " << pin << std::endl;
     return true;
