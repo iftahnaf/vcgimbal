@@ -7,22 +7,33 @@
 A C++ library for controlling a pan-tilt camera gimbal with MG90S servos on **Raspberry Pi 5 (Linux)** and **Raspberry Pi Pico (RP2040)**. The core API is platform-independent; platform-specific PWM drivers are selected at build time.
 
 ## Features
-- Platform abstraction (`PWMController`) with RPi5 (pigpio) and Pico (pico-sdk) backends
+- Platform abstraction (`PWMController`) with RPi5 (lgpio) and Pico (pico-sdk) backends
 - Gimbal API: init, set angles, query state, shutdown
-- Servo-safe defaults for MG90S (50 Hz, 1000-2000 µs, ±90°)
+- Servo-safe defaults for MG90S (50 Hz, 1000-2000 µs pulse width, ±90° range)
+- Userspace PWM control via lgpio on RPi5 (no daemon required)
 - Automated CI and semantic-release publishing
-- Release artifacts per platform: RPi5 `.bin`/`.elf`, Pico `.uf2`/`.bin`/`.elf`
+- Release artifacts per platform: RPi5 executable, Pico `.uf2`/`.bin`/`.elf`
 
 ## Building the Project
+
+### Hardware Wiring (Raspberry Pi 5)
+Connect MG90S servo signal pins to GPIO and power pins to 5V:
+
+| Servo Signal | GPIO Pin | Physical Pin |
+|--------------|----------|--------------|
+| Pan Servo    | GPIO 17  | Pin 11       |
+| Tilt Servo   | GPIO 27  | Pin 13       |
+| 5V Power     | 5V Rail  | Pin 2/4      |
+| GND          | Ground   | Pin 6/9/etc  |
 
 ### Prerequisites (Ubuntu/Debian)
 ```bash
 sudo apt-get update
 sudo apt-get install -y build-essential cmake git
+# RPi5 hardware PWM via lgpio
+sudo apt-get install -y liblgpio-dev
 # Pico toolchain (Pico builds only)
 sudo apt-get install -y gcc-arm-none-eabi
-# Optional (RPi5 hardware PWM)
-sudo apt-get install -y pigpio
 ```
 
 ### Quick Builds
@@ -35,19 +46,27 @@ bash scripts/build.sh PICO
 ```
 
 Outputs:
-- RPi5: build/bin/gimbal_example (release assets: gimbal_rpi5.bin, gimbal_rpi5.elf)
-- Pico: build/bin/gimbal_example.uf2, .bin, .elf (release assets: gimbal_pico.uf2, gimbal_pico.bin, gimbal_pico.elf)
+- RPi5: `build/bin/gimbal_example` (executable)
+- Pico: `build/bin/gimbal_example.uf2`, `.bin`, `.elf`
 
-### Optional: Start pigpio (RPi5 hardware PWM)
+### Running on Raspberry Pi 5
 ```bash
-sudo systemctl enable pigpiod
-sudo systemctl start pigpiod
+# Run with elevated privileges (GPIO access required)
+sudo ./build/bin/gimbal_example
+
+# Or add user to gpio group to run without sudo (requires re-login)
+sudo usermod -a -G gpio $(whoami)
+./build/bin/gimbal_example
+```
+
+### Testing Servos (Python Quick Test)
+A minimal Python lgpio script for quick servo testing:
+```bash
+python3 examples/servo_lgpio_sweep.py
 ```
 
 ### Cross-Compilation / CI
 CI builds on Ubuntu using the bundled pico-sdk submodule and ARM toolchain. See .github/workflows/ci.yml for reference.
-
-More guides: [docs/quickstart.md](docs/quickstart.md) and [docs/platforms.md](docs/platforms.md).
 
 ## Usage
 
@@ -86,7 +105,7 @@ int main() {
 ### Running the Example
 ```bash
 cd build
-./bin/gimbal_example           # RPi5 host run (simulation unless pigpio enabled)
+sudo ./bin/gimbal_example           # RPi5 (requires GPIO access)
 
 # For Pico: flash build/bin/gimbal_example.uf2 to the board (see scripts/flash.sh)
 ```
@@ -143,24 +162,24 @@ bool isInitialized() const;
 
 ## Implementation Status
 
-### Current (Simulation Mode)
-- Class architecture and API
-- Angle validation and conversion
-- Logging and example code
-- PWM signals logged but not actually applied to GPIO
+### Current (Hardware Integration Complete - RPi5)
+- ✅ Gimbal class architecture and API fully working
+- ✅ Angle validation and PWM conversion (1000-2000 µs pulses for ±90°)
+- ✅ Hardware PWM output via lgpio userspace driver (no daemon required)
+- ✅ Example code demonstrating servo sweep and angle control
+- ✅ Python helper script for quick servo testing
+- ✅ GPIO 17 (pan) and GPIO 27 (tilt) on Raspberry Pi 5
 
-### TODO - Hardware Integration
-- Implement actual PWM control using pigpio library
-- Add hardware error handling
-- Implement servo calibration
-- Add temperature and voltage monitoring
+### Pico (RP2040)
+- ✅ Hardware PWM via pico-sdk GPIO library
+- ✅ Firmware builds to `.uf2` and `.elf` formats
 
 ### TODO - Advanced Features
 - Trajectory planning algorithms
 - PID control for smooth motion
 - Camera auto-tracking
 - Speed/acceleration control
-- Boundary checking and safety limits
+- Safety boundary checking and limits
 
 ## Configuration
 

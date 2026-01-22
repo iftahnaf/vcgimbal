@@ -8,9 +8,16 @@
 
 /**
  * @class PWMControllerRPi5
- * @brief PWM controller for Raspberry Pi 5 using lgpio
+ * @brief PWM controller for Raspberry Pi 5 using lgpio userspace driver
  * 
- * Generates PWM for servos via lgpio's tx_pwm at 50 Hz.
+ * Generates hardware PWM signals via lgpio's tx_pwm() at 50 Hz for servo control.
+ * Requires: liblgpio-dev (install: sudo apt install -y liblgpio-dev)
+ * GPIO Pins: GPIO 17 (pan), GPIO 27 (tilt)
+ * 
+ * Features:
+ * - No daemon required (userspace control)
+ * - Direct PWM with precise pulse widths (1000-2000 µs)
+ * - Proper servo signal at 50 Hz
  */
 class PWMControllerRPi5 : public PWMController {
 public:
