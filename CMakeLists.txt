@@ -63,12 +63,18 @@ if(PLATFORM STREQUAL "PICO")
     )
     target_compile_definitions(gimbal_lib PUBLIC PICO_BUILD=1)
 else()
-    # Optional: Link pigpio if available for RPi5
-    # find_package(pigpio QUIET)
-    # if(pigpio_FOUND)
-    #     target_link_libraries(gimbal_lib ${pigpio_LIBRARIES})
-    #     target_include_directories(gimbal_lib PRIVATE ${pigpio_INCLUDE_DIRS})
-    # endif()
+    # Link libgpiod for RPi5
+    find_package(PkgConfig REQUIRED)
+    pkg_check_modules(GPIOD libgpiod)
+    
+    if(GPIOD_FOUND)
+        target_link_libraries(gimbal_lib ${GPIOD_LIBRARIES})
+        target_include_directories(gimbal_lib PRIVATE ${GPIOD_INCLUDE_DIRS})
+        message(STATUS "libgpiod found and linked")
+    else()
+        message(WARNING "libgpiod not found - GPIO control will not work")
+        message(STATUS "Install with: sudo apt install -y libgpiod-dev")
+    endif()
 endif()
 
 # Set library output directory
