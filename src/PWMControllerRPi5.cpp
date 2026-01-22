@@ -9,7 +9,7 @@ PWMControllerRPi5::~PWMControllerRPi5() {
 }
 
 bool PWMControllerRPi5::initLgpio() {
-    chip_ = gpiochip_open(0);
+    chip_ = lgGpiochipOpen(0);
     if (chip_ < 0) {
         std::cerr << "Failed to open gpiochip0" << std::endl;
         return false;
@@ -21,13 +21,13 @@ bool PWMControllerRPi5::initLgpio() {
 void PWMControllerRPi5::shutdownLgpio() {
     for (auto pin : claimed_pins_) {
         // Stop PWM and free pin
-        tx_pwm(chip_, pin, 50.0, 0.0);
-        gpio_free(chip_, pin);
+        lgTxPwm(chip_, pin, 50.0, 0.0);
+        lgGpioFree(chip_, pin);
     }
     claimed_pins_.clear();
     pin_frequency_.clear();
     if (chip_ >= 0) {
-        gpiochip_close(chip_);
+        lgGpiochipClose(chip_);
         chip_ = -1;
     }
     std::cout << "PWMControllerRPi5: gpiochip0 closed" << std::endl;
@@ -43,7 +43,7 @@ bool PWMControllerRPi5::initPin(uint32_t pin, uint32_t frequency) {
         pin_frequency_[pin] = frequency;
         return true;
     }
-    if (gpio_claim_output(chip_, pin) < 0) {
+    if (lgGpioClaimOutput(chip_, pin, 0) < 0) {
         std::cerr << "Failed to claim GPIO " << pin << " as output" << std::endl;
         return false;
     }
@@ -64,7 +64,7 @@ bool PWMControllerRPi5::setPulseWidth(uint32_t pin, uint32_t pulse_width_us, uin
         return false;
     }
     double duty = (static_cast<double>(pulse_width_us) / static_cast<double>(period_us)) * 100.0;
-    if (tx_pwm(chip_, pin, static_cast<double>(itf->second), duty) < 0) {
+    if (lgTxPwm(chip_, pin, static_cast<double>(itf->second), duty) < 0) {
         std::cerr << "Failed to set PWM on pin " << pin << std::endl;
         return false;
     }
@@ -75,8 +75,8 @@ bool PWMControllerRPi5::shutdownPin(uint32_t pin) {
     if (!claimed_pins_.count(pin)) {
         return false;
     }
-    tx_pwm(chip_, pin, 50.0, 0.0);
-    gpio_free(chip_, pin);
+    lgTxPwm(chip_, pin, 50.0, 0.0);
+    lgGpioFree(chip_, pin);
     claimed_pins_.erase(pin);
     pin_frequency_.erase(pin);
     std::cout << "PWMControllerRPi5: Shutdown pin " << pin << std::endl;
