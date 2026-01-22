@@ -45,8 +45,31 @@ bool PWMControllerRPi5::initPin(uint32_t pin, uint32_t frequency) {
         }
     }
 
-    // Create output line request for the pin
-    struct gpiod_line_request* request = gpiod_chip_request_line(chip_, pin, "gimbal");
+    // Create line config for output
+    struct gpiod_line_config* line_cfg = gpiod_line_config_new();
+    if (!line_cfg) {
+        std::cerr << "Failed to create line config" << std::endl;
+        return false;
+    }
+    gpiod_line_config_set_output_value(line_cfg, 0, GPIOD_LINE_VALUE_INACTIVE);
+    
+    // Create request config
+    struct gpiod_request_config* req_cfg = gpiod_request_config_new();
+    if (!req_cfg) {
+        std::cerr << "Failed to create request config" << std::endl;
+        gpiod_line_config_free(line_cfg);
+        return false;
+    }
+    gpiod_request_config_set_consumer(req_cfg, "gimbal");
+    
+    // Add offset to request
+    gpiod_request_config_add_line_offset(req_cfg, pin);
+    
+    // Request lines from chip
+    struct gpiod_line_request* request = gpiod_chip_request_lines(chip_, req_cfg, line_cfg);
+    gpiod_request_config_free(req_cfg);
+    gpiod_line_config_free(line_cfg);
+    
     if (!request) {
         std::cerr << "Failed to request GPIO line " << pin << std::endl;
         return false;
@@ -71,10 +94,9 @@ bool PWMControllerRPi5::setPulseWidth(uint32_t pin, uint32_t pulse_width_us, uin
     uint32_t duty_cycle = (pulse_width_us * 1000000) / period_us;
     
     // Set HIGH if duty cycle > 50%, LOW otherwise
-    // For actual hardware PWM on RPi5, you'd need PWM sysfs or ioctl control
     enum gpiod_line_value value = (duty_cycle > 500000) ? GPIOD_LINE_VALUE_ACTIVE : GPIOD_LINE_VALUE_INACTIVE;
     
-    if (gpiod_line_request_set_value(request, value) < 0) {
+    if (gpiod_line_request_set_value(request, 0, value) < 0) {
         std::cerr << "Failed to set GPIO line " << pin << " value" << std::endl;
         return false;
     }
@@ -91,7 +113,7 @@ bool PWMControllerRPi5::shutdownPin(uint32_t pin) {
     }
     
     struct gpiod_line_request* request = it->second;
-    gpiod_line_request_set_value(request, GPIOD_LINE_VALUE_INACTIVE);
+    gpiod_line_request_set_value(request, 0, GPIOD_LINE_VALUE_INACTIVE);
     gpiod_line_request_release(request);
     requests_.erase(it);
     
