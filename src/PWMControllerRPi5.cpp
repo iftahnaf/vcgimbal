@@ -101,7 +101,8 @@ bool PWMControllerRPi5::setPulseWidth(uint32_t pin, uint32_t pulse_width_us, uin
     uint32_t duty_cycle = (pulse_width_us * 1000000) / period_us;
     gpiod_line_value value = (duty_cycle > 500000) ? GPIOD_LINE_VALUE_ACTIVE : GPIOD_LINE_VALUE_INACTIVE;
 
-    if (gpiod_line_request_set_value(it->second, 0, value) < 0) {
+    // In libgpiod v2, set by line offset (GPIO number)
+    if (gpiod_line_request_set_value(it->second, pin, value) < 0) {
         std::cerr << "Failed to set GPIO line " << pin << " value" << std::endl;
         return false;
     }
@@ -116,7 +117,8 @@ bool PWMControllerRPi5::shutdownPin(uint32_t pin) {
     if (it == requests_.end()) {
         return false;
     }
-    gpiod_line_request_set_value(it->second, 0, GPIOD_LINE_VALUE_INACTIVE);
+    // Set inactive by offset before releasing
+    gpiod_line_request_set_value(it->second, pin, GPIOD_LINE_VALUE_INACTIVE);
     gpiod_line_request_release(it->second);
     requests_.erase(it);
     std::cout << "PWMControllerRPi5: Shutdown pin " << pin << std::endl;
