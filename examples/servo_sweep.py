@@ -32,9 +32,26 @@ def main():
     parser.add_argument("--tilt", type=int, default=27, help="GPIO for tilt servo (default: 27)")
     args = parser.parse_args()
 
-    pi = pigpio.pi()
-    if not pi.connected:
-        print("pigpio daemon not running. Start it with: sudo pigpiod")
+    # Try default, then IPv4 and IPv6 loopback
+    candidates = [
+        (None, None),
+        ("127.0.0.1", 8888),
+        ("::1", 8888),
+    ]
+
+    pi = None
+    for host, port in candidates:
+        try:
+            pi = pigpio.pi() if host is None else pigpio.pi(host, port)
+            if pi and pi.connected:
+                break
+        except Exception:
+            pass
+
+    if not pi or not pi.connected:
+        print("pigpio daemon not reachable. Start or restart it explicitly:")
+        print("  sudo pkill pigpiod || true")
+        print("  sudo pigpiod -s10 -t0")
         sys.exit(1)
 
     print(f"Connected to pigpio. Sweeping PAN={args.pan}, TILT={args.tilt}")
