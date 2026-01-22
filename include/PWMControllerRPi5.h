@@ -3,13 +3,16 @@
 
 #include "PWMController.h"
 #include <cstdint>
-#include <set>
+#include <map>
+
+struct gpiod_chip;
+struct gpiod_line_request;
 
 /**
  * @class PWMControllerRPi5
- * @brief PWM controller for Raspberry Pi 5 using sysfs GPIO
+ * @brief PWM controller for Raspberry Pi 5 using libgpiod v2
  * 
- * Implements GPIO control via sysfs interface for RPi5/RPi4 systems.
+ * Implements GPIO control via libgpiod v2 API for RPi5/RPi4 systems.
  */
 class PWMControllerRPi5 : public PWMController {
 public:
@@ -19,14 +22,14 @@ public:
     bool initPin(uint32_t pin, uint32_t frequency) override;
     bool setPulseWidth(uint32_t pin, uint32_t pulse_width_us, uint32_t period_us) override;
     bool shutdownPin(uint32_t pin) override;
-    const char* getPlatformName() const override { return "Raspberry Pi 5 (sysfs GPIO)"; }
+    const char* getPlatformName() const override { return "Raspberry Pi 5 (libgpiod v2)"; }
 
 private:
-    std::set<uint32_t> exported_pins_;
-    
-    bool exportPin(uint32_t pin);
-    bool unexportPin(uint32_t pin);
-    bool writeGpio(uint32_t pin, int value);
+    struct gpiod_chip* chip_;
+    std::map<uint32_t, struct gpiod_line_request*> requests_;
+
+    bool initGpiod();
+    void shutdownGpiod();
 };
 
 #endif // PWM_CONTROLLER_RPI5_H

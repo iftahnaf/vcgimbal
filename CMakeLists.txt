@@ -63,8 +63,17 @@ if(PLATFORM STREQUAL "PICO")
     )
     target_compile_definitions(gimbal_lib PUBLIC PICO_BUILD=1)
 else()
-    # RPi5 uses sysfs GPIO - no special dependencies needed
-    message(STATUS "Building for Raspberry Pi 5 with sysfs GPIO control")
+    # RPi5: Link libgpiod via pkg-config
+    find_package(PkgConfig REQUIRED)
+    pkg_check_modules(GPIOD libgpiod)
+    if(GPIOD_FOUND)
+        target_link_libraries(gimbal_lib ${GPIOD_LIBRARIES})
+        target_include_directories(gimbal_lib PRIVATE ${GPIOD_INCLUDE_DIRS})
+        message(STATUS "libgpiod found and linked")
+    else()
+        message(WARNING "libgpiod not found - GPIO control will not work")
+        message(STATUS "Install with: sudo apt install -y libgpiod-dev")
+    endif()
 endif()
 
 # Set library output directory

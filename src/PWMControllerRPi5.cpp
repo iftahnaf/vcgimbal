@@ -1,107 +1,124 @@
 #include "PWMControllerRPi5.h"
 #include <iostream>
-#include <fstream>
-#include <string>
+#include <gpiod.h>
 
-PWMControllerRPi5::PWMControllerRPi5() {
-}
+PWMControllerRPi5::PWMControllerRPi5() : chip_(nullptr) {}
 
 PWMControllerRPi5::~PWMControllerRPi5() {
-    // Unexport all pins
-    for (uint32_t pin : exported_pins_) {
-        unexportPin(pin);
-    }
+    shutdownGpiod();
 }
 
-bool PWMControllerRPi5::exportPin(uint32_t pin) {
-    if (exported_pins_.count(pin)) {
-        return true;  // Already exported
-    }
-
-    std::ofstream export_file("/sys/class/gpio/export");
-    if (!export_file.is_open()) {
-        std::cerr << "Failed to open GPIO export" << std::endl;
+bool PWMControllerRPi5::initGpiod() {
+    chip_ = gpiod_chip_open("/dev/gpiochip0");
+    if (!chip_) {
+        std::cerr << "Failed to open GPIO chip" << std::endl;
         return false;
     }
-    
-    export_file << pin << std::endl;
-    export_file.close();
-    
-    exported_pins_.insert(pin);
-    std::cout << "PWMControllerRPi5: Exported GPIO pin " << pin << std::endl;
+    std::cout << "PWMControllerRPi5: GPIO chip opened successfully" << std::endl;
     return true;
 }
 
-bool PWMControllerRPi5::unexportPin(uint32_t pin) {
-    if (!exported_pins_.count(pin)) {
-        return true;
+void PWMControllerRPi5::shutdownGpiod() {
+    for (auto &entry : requests_) {
+        if (entry.second) {
+            gpiod_line_request_release(entry.second);
+        }
     }
+    requests_.clear();
 
-    std::ofstream unexport_file("/sys/class/gpio/unexport");
-    if (!unexport_file.is_open()) {
-        return false;
+    if (chip_) {
+        gpiod_chip_close(chip_);
+        chip_ = nullptr;
     }
-    
-    unexport_file << pin << std::endl;
-    unexport_file.close();
-    
-    exported_pins_.erase(pin);
-    std::cout << "PWMControllerRPi5: Unexported GPIO pin " << pin << std::endl;
-    return true;
-}
-
-bool PWMControllerRPi5::writeGpio(uint32_t pin, int value) {
-    std::string path = "/sys/class/gpio/gpio" + std::to_string(pin) + "/value";
-    std::ofstream value_file(path);
-    if (!value_file.is_open()) {
-        std::cerr << "Failed to write GPIO value for pin " << pin << std::endl;
-        return false;
-    }
-    
-    value_file << (value ? 1 : 0) << std::endl;
-    value_file.close();
-    return true;
+    std::cout << "PWMControllerRPi5: GPIO chip closed" << std::endl;
 }
 
 bool PWMControllerRPi5::initPin(uint32_t pin, uint32_t frequency) {
-    if (!exportPin(pin)) {
+    if (!chip_) {
+        if (!initGpiod()) {
+            return false;
+        }
+    }
+
+    // Build request and line configs per libgpiod v2 API
+    gpiod_request_config *req_cfg = gpiod_request_config_new();
+    if (!req_cfg) {
+        std::cerr << "Failed to allocate request config" << std::endl;
+        return false;
+    }
+    gpiod_request_config_set_consumer(req_cfg, "gimbal");
+
+    gpiod_line_settings *settings = gpiod_line_settings_new();
+    if (!settings) {
+        std::cerr << "Failed to allocate line settings" << std::endl;
+        gpiod_request_config_free(req_cfg);
+        return false;
+    }
+    gpiod_line_settings_set_direction(settings, GPIOD_LINE_DIRECTION_OUTPUT);
+    gpiod_line_settings_set_output_value(settings, GPIOD_LINE_VALUE_INACTIVE);
+
+    gpiod_line_config *line_cfg = gpiod_line_config_new();
+    if (!line_cfg) {
+        std::cerr << "Failed to allocate line config" << std::endl;
+        gpiod_line_settings_free(settings);
+        gpiod_request_config_free(req_cfg);
         return false;
     }
 
-    // Set direction to output
-    std::string direction_path = "/sys/class/gpio/gpio" + std::to_string(pin) + "/direction";
-    std::ofstream direction_file(direction_path);
-    if (!direction_file.is_open()) {
-        std::cerr << "Failed to set GPIO direction for pin " << pin << std::endl;
+    unsigned int offsets[] = { pin };
+    if (gpiod_line_config_add_line_settings(line_cfg, offsets, 1, settings) < 0) {
+        std::cerr << "Failed to add line settings for pin " << pin << std::endl;
+        gpiod_line_config_free(line_cfg);
+        gpiod_line_settings_free(settings);
+        gpiod_request_config_free(req_cfg);
         return false;
     }
-    
-    direction_file << "out" << std::endl;
-    direction_file.close();
-    
-    std::cout << "PWMControllerRPi5: Initialized pin " << pin 
+
+    gpiod_line_settings_free(settings);
+
+    gpiod_line_request *request = gpiod_chip_request_lines(chip_, req_cfg, line_cfg);
+    gpiod_request_config_free(req_cfg);
+    gpiod_line_config_free(line_cfg);
+
+    if (!request) {
+        std::cerr << "Failed to request GPIO line " << pin << std::endl;
+        return false;
+    }
+
+    requests_[pin] = request;
+    std::cout << "PWMControllerRPi5: Initialized pin " << pin
               << " with frequency " << frequency << " Hz" << std::endl;
     return true;
 }
 
 bool PWMControllerRPi5::setPulseWidth(uint32_t pin, uint32_t pulse_width_us, uint32_t period_us) {
-    // Calculate duty cycle
-    uint32_t duty_cycle = (pulse_width_us * 1000000) / period_us;
-    
-    // Set HIGH if duty cycle > 50%, LOW otherwise
-    // For actual hardware PWM, you'd need to use PWM sysfs or device tree overlays
-    int value = (duty_cycle > 500000) ? 1 : 0;
-    
-    if (!writeGpio(pin, value)) {
+    auto it = requests_.find(pin);
+    if (it == requests_.end()) {
+        std::cerr << "Pin " << pin << " not initialized" << std::endl;
         return false;
     }
-    
-    std::cout << "PWMControllerRPi5: Set pin " << pin << " pulse width: " 
+
+    uint32_t duty_cycle = (pulse_width_us * 1000000) / period_us;
+    gpiod_line_value value = (duty_cycle > 500000) ? GPIOD_LINE_VALUE_ACTIVE : GPIOD_LINE_VALUE_INACTIVE;
+
+    if (gpiod_line_request_set_value(it->second, 0, value) < 0) {
+        std::cerr << "Failed to set GPIO line " << pin << " value" << std::endl;
+        return false;
+    }
+
+    std::cout << "PWMControllerRPi5: Set pin " << pin << " pulse width: "
               << pulse_width_us << " µs (duty: " << (duty_cycle / 10000) << "%)" << std::endl;
     return true;
 }
 
 bool PWMControllerRPi5::shutdownPin(uint32_t pin) {
-    writeGpio(pin, 0);
-    return unexportPin(pin);
+    auto it = requests_.find(pin);
+    if (it == requests_.end()) {
+        return false;
+    }
+    gpiod_line_request_set_value(it->second, 0, GPIOD_LINE_VALUE_INACTIVE);
+    gpiod_line_request_release(it->second);
+    requests_.erase(it);
+    std::cout << "PWMControllerRPi5: Shutdown pin " << pin << std::endl;
+    return true;
 }
