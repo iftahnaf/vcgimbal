@@ -3,16 +3,14 @@
 
 #include "PWMController.h"
 #include <cstdint>
+#include <set>
 #include <map>
-
-struct gpiod_chip;
-struct gpiod_line_request;
 
 /**
  * @class PWMControllerRPi5
- * @brief PWM controller for Raspberry Pi 5 using libgpiod v2
+ * @brief PWM controller for Raspberry Pi 5 using lgpio
  * 
- * Implements GPIO control via libgpiod v2 API for RPi5/RPi4 systems.
+ * Generates PWM for servos via lgpio's tx_pwm at 50 Hz.
  */
 class PWMControllerRPi5 : public PWMController {
 public:
@@ -22,14 +20,15 @@ public:
     bool initPin(uint32_t pin, uint32_t frequency) override;
     bool setPulseWidth(uint32_t pin, uint32_t pulse_width_us, uint32_t period_us) override;
     bool shutdownPin(uint32_t pin) override;
-    const char* getPlatformName() const override { return "Raspberry Pi 5 (libgpiod v2)"; }
+    const char* getPlatformName() const override { return "Raspberry Pi 5 (lgpio)"; }
 
 private:
-    struct gpiod_chip* chip_;
-    std::map<uint32_t, struct gpiod_line_request*> requests_;
+    int chip_;
+    std::set<uint32_t> claimed_pins_;
+    std::map<uint32_t, uint32_t> pin_frequency_;
 
-    bool initGpiod();
-    void shutdownGpiod();
+    bool initLgpio();
+    void shutdownLgpio();
 };
 
 #endif // PWM_CONTROLLER_RPI5_H
